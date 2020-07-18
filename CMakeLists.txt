@@ -1660,6 +1660,14 @@ if (UNIX)
 endif (UNIX)
 
 ############################################################
+# symlink ".githooks" directory
+############################################################
+execute_process(
+  COMMAND rm -rf "${YB_SRC_ROOT}/.git/hooks/")
+execute_process(
+  COMMAND ln -s "${YB_SRC_ROOT}/hooks/" "${YB_SRC_ROOT}/.git/hooks")
+
+############################################################
 # Subdirectories
 ############################################################
 
