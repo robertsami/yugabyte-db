@@ -1,3 +1,12 @@
-python3 "$(dirname "$0")/pre_push.py" $1 $2 <&0
+#!/usr/bin/python3
 
-exit $?
+import sys
+
+[remote_name, remote_loc] = sys.argv[1:]
+
+[local_ref, local_sha1, remote_ref, remote_sha1] = sys.stdin.read().split()
+print("yoyo", remote_ref)
+if remote_loc.lower() == "git@github.com:yugabyte/yugabyte-db.git":
+    if (remote_ref != "refs/heads/master"):
+        print("Cannot push to yugabyte repo")
+        sys.exit(1)
