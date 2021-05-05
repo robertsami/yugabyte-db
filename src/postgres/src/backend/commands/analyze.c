@@ -33,6 +33,8 @@
 #include "commands/dbcommands.h"
 #include "commands/tablecmds.h"
 #include "commands/vacuum.h"
+#include "commands/ybccmds.h"
+#include "common/pg_yb_common.h"
 #include "executor/executor.h"
 #include "foreign/fdwapi.h"
 #include "miscadmin.h"
@@ -40,6 +42,7 @@
 #include "parser/parse_oper.h"
 #include "parser/parse_relation.h"
 #include "pgstat.h"
+#include "pg_yb_utils.h"
 #include "postmaster/autovacuum.h"
 #include "statistics/extended_stats_internal.h"
 #include "statistics/statistics.h"
@@ -367,15 +370,25 @@ do_analyze_rel(Relation onerel, int options, VacuumParams *params,
 	Oid			save_userid;
 	int			save_sec_context;
 	int			save_nestlevel;
+	bool		is_yb_relation;
+	bool		is_simple_yb_analyze;
 
+	is_yb_relation = IsYBRelation(onerel);
+	is_simple_yb_analyze = is_yb_relation && !va_cols && !(options & VACOPT_VACUUM);
 	/*
 	 * ANALYZE not supported for Yugabyte relations.
 	 */
-	if (IsYBRelation(onerel))
+	if (is_yb_relation)
 	{
-		ereport(WARNING,
+		if (!is_simple_yb_analyze || !YBIsAnalyzeCmdEnabled()) {
+			ereport(WARNING,
 				(errmsg("analyzing non-temporary tables will be ignored")));
-		return;
+			return;
+		}
+
+		nindexes = 0;
+		totaldeadrows = 0;
+		totalrows = YBCAnalyzeTable(onerel);
 	}
 
 	if (inh)
@@ -416,6 +429,7 @@ do_analyze_rel(Relation onerel, int options, VacuumParams *params,
 			starttime = GetCurrentTimestamp();
 	}
 
+	if (!is_yb_relation) {
 	/*
 	 * Determine which columns to analyze
 	 *
@@ -637,6 +651,7 @@ do_analyze_rel(Relation onerel, int options, VacuumParams *params,
 		BuildRelationExtStatistics(onerel, totalrows, numrows, rows, attr_cnt,
 								   vacattrstats);
 	}
+	}
 
 	/*
 	 * Update pages/tuples stats in pg_class ... but not if we're doing
@@ -715,6 +730,7 @@ do_analyze_rel(Relation onerel, int options, VacuumParams *params,
 		}
 	}
 
+	if (!is_yb_relation) {
 	/* Done with indexes */
 	vac_close_indexes(nindexes, Irel, NoLock);
 
@@ -730,6 +746,7 @@ do_analyze_rel(Relation onerel, int options, VacuumParams *params,
 							get_namespace_name(RelationGetNamespace(onerel)),
 							RelationGetRelationName(onerel),
 							pg_rusage_show(&ru0))));
+	}
 	}
 
 	/* Roll back any GUC changes executed by index functions */

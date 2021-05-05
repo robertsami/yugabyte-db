@@ -110,3 +110,7 @@ DEFINE_int32(ysql_max_write_restart_attempts, 20,
 
 DEFINE_bool(ysql_sleep_before_retry_on_txn_conflict, true,
             "Whether to sleep before retrying the write on transaction conflicts.");
+
+DEFINE_bool(ysql_allow_analyze_cmd, false,
+            "Whether to allow ANALYZE cmd to run basic row count estimation.");
+TAG_FLAG(ysql_allow_analyze_cmd, hidden);
